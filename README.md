@@ -27,12 +27,13 @@
 - [Project Vision](#project-vision)
 - [Current Status](#current-status)
 - [Product Overview](#product-overview)
-- [Current Features](#current-features)
+- [Current Capabilities](#current-capabilities)
 - [Roadmap](#roadmap)
-- [Architecture](#architecture)
+- [Architectural Layers](#architectural-layers)
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Engineering Principles](#engineering-principles)
+- [Guiding Principles](#guiding-principles)
 - [Architecture Philosophy](#architecture-philosophy)
 - [Engineering Decisions](#engineering-decisions)
 - [Local Development](#local-development)
@@ -77,11 +78,13 @@ These constraints — not aesthetic preference — are what the architecture, te
 - [ ] Authentication, authorization, and service layer — planned
 - [ ] Financial engine — wallets, ledger, settlement — planned
 
-Details for each item are in [Current Features](#current-features) and [Roadmap](#roadmap).
+Details for each item are in [Current Capabilities](#current-capabilities) and [Roadmap](#roadmap).
 
 ## Product Overview
 
 The platform's target domain sits in sports and event wagering. The concepts below define the domain model the system is being designed around — implementation status for each is tracked explicitly in the [Roadmap](#roadmap), not implied here.
+
+> The domain model intentionally focuses on operational workflows instead of user-facing betting interactions. The objective is to model the systems responsible for correctness, settlement, financial integrity, and operational management rather than the betting experience itself.
 
 | Concept | Description |
 |---|---|
@@ -93,7 +96,7 @@ The platform's target domain sits in sports and event wagering. The concepts bel
 | **Bet Slip** | One or more selections combined into a single wager with a stake. |
 | **Settlement** | The process of resolving a market's outcome and applying payouts to affected ledgers. |
 
-## Current Features
+## Current Capabilities
 
 Everything listed here exists in the codebase today and is exercised by CI. Nothing in this section is aspirational.
 
@@ -162,9 +165,11 @@ Organized by engineering milestone rather than a flat feature list, so the path 
 ### Cloud
 - [ ] Production deployment to AWS
 
-## Architecture
+## Architectural Layers
 
-> The layers below describe the architectural blueprint this codebase is being built toward, derived from the API-only skeleton and configuration already in place (`config.api_only = true`, database-backed job/cache adapters, submodule separation of infra and app). Only **Controllers** and **Models** exist in skeletal form today; the rest are documented here as the intended responsibility split, tracked in the [Roadmap](#roadmap).
+> The table below defines architectural responsibilities, not implementation status. It describes the blueprint this codebase is being built toward, derived from the API-only skeleton and configuration already in place (`config.api_only = true`, database-backed job/cache adapters, submodule separation of infra and app). Only **Controllers** and **Models** exist in skeletal form today; the rest are tracked in the [Roadmap](#roadmap).
+
+**Layer Responsibility Matrix**
 
 | Layer | Responsibility |
 |---|---|
@@ -265,6 +270,8 @@ betting-platform/
 
 ## Engineering Principles
 
+The principles below are used as engineering heuristics rather than rigid rules. Whenever a design decision requires violating one of them, the trade-off should be explicit and documented.
+
 - **Thin controllers.** Controllers translate HTTP; they do not contain business logic. That logic belongs in service objects.
 - **Service objects for use cases.** Multi-step business processes (placing a bet, settling a market) are modeled as single-purpose, testable objects rather than spread across callbacks and controller actions.
 - **Separation of concerns.** Persistence (models), authorization (policies), business logic (services), and complex reads (query objects) are deliberately kept in separate layers.
@@ -273,6 +280,17 @@ betting-platform/
 - **RESTful APIs.** Resources and actions are modeled around standard HTTP verbs and status codes.
 - **Tests at the boundary.** Request specs are the primary tool for verifying behavior as a client of the API would experience it, complemented by focused unit specs for services and models.
 - **CI as a gate, not a formality.** Security scanning, linting, and tests block merges rather than running informationally — a failing build is treated as broken, not as a warning to address later.
+
+## Guiding Principles
+
+These are the underlying values the principles above are derived from.
+
+- Correctness over convenience.
+- Explicitness over magic.
+- Simplicity over cleverness.
+- Testability over shortcuts.
+- Observability over assumptions.
+- Evolutionary architecture over premature optimization.
 
 ## Architecture Philosophy
 
@@ -290,7 +308,7 @@ The layering described above isn't a Rails convention followed out of habit — 
 
 ## Engineering Decisions
 
-Architectural choices in this codebase are meant to be discoverable, not just inferable from the code. As services, query objects, error handling, authorization, and the testing strategy are implemented, the reasoning behind each decision — not just the resulting code — will be recorded as lightweight Architecture Decision Records under `docs/adr/`.
+Architectural choices in this codebase are meant to be discoverable, not just inferable from the code. As services, query objects, error handling, authorization, and the testing strategy are implemented, the reasoning behind each decision — not just the resulting code — will be recorded as lightweight Architecture Decision Records (ADRs) under `docs/adr/`.
 
 The goal is that a reviewer can find out *why* a decision was made — for example, why settlement runs as a background job instead of inline, or why authorization is a separate policy layer instead of model scopes — without reconstructing it from commit history.
 
@@ -454,20 +472,16 @@ flowchart TD
 
 Ideas beyond the scoped [Roadmap](#roadmap) — directionally likely, not yet committed to.
 
-### Platform
+### Near-term Evolution
+- Seed data and demo fixtures for a realistic local environment without production data.
+- Feature flags for gradual rollout of new markets or wagering types without full deploys.
+- Audit logs as an immutable, queryable trail for compliance and dispute resolution — distinct from the ledger's transactional record.
+
+### Long-term Architecture
 - Multi-region / high-availability deployment topology, once a single Kamal target stops being sufficient.
 
-### Architecture
+### Research Topics
 - Event-driven architecture for settlement and notifications, decoupling side effects from the request/response cycle.
-
-### Developer Experience
-- Seed data and demo fixtures for a realistic local environment without production data.
-
-### Product
-- Feature flags for gradual rollout of new markets or wagering types without full deploys.
-
-### Operations
-- Audit logs as an immutable, queryable trail for compliance and dispute resolution — distinct from the ledger's transactional record.
 
 ## Contributing
 
@@ -478,6 +492,7 @@ This is currently a solo portfolio project, developed openly. The conventions be
 - **Before opening a PR** — run `bin/rubocop`, `bin/brakeman`, and `bin/rails test` locally; all three run again in CI and must pass before merge.
 - **Pull requests** — scoped to a single concern, with a description of the *why*, not just the *what*.
 - **Submodule changes** — if a change touches `backend/`, commit and merge there first, then bump the submodule pointer in the root repository as a separate, clearly-labeled commit.
+- **Architectural changes** — changes that introduce new patterns or modify architectural boundaries should be accompanied by an Architecture Decision Record (ADR) under `docs/adr/`.
 
 Issues and discussion are welcome via the GitHub issue tracker on either repository.
 
@@ -485,11 +500,9 @@ Issues and discussion are welcome via the GitHub issue tracker on either reposit
 
 **Jean Aragão** ([@jeanflaragao](https://github.com/jeanflaragao))
 
-This project represents a long-term study of software architecture and backend engineering through the implementation of a financially sensitive domain — chosen deliberately because correctness and concurrency can't be faked with a CRUD scaffold. The engineering practices documented above (CI from the first commit, layered architecture, documented decisions) are the point of the exercise as much as the eventual feature set.
+This project is an ongoing engineering effort in software architecture and backend engineering, built around a financially sensitive domain — chosen deliberately because correctness and concurrency can't be faked with a CRUD scaffold. The engineering practices documented above (CI from the first commit, layered architecture, documented decisions) are as much the point of this project as the eventual feature set.
 
-- LinkedIn: `[add LinkedIn profile URL]`
-- Portfolio: `[add portfolio URL]`
-- Email: `[add contact email]`
+- LinkedIn: `https://www.linkedin.com/in/aragao-jean/`
 
 ## License
 
