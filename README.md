@@ -502,9 +502,7 @@ Issues and discussion are welcome via the GitHub issue tracker on either reposit
 
 This project is an ongoing engineering effort in software architecture and backend engineering, built around a financially sensitive domain — chosen deliberately because correctness and concurrency can't be faked with a CRUD scaffold. The engineering practices documented above (CI from the first commit, layered architecture, documented decisions) are as much the point of this project as the eventual feature set.
 
-- LinkedIn: `[add LinkedIn profile URL]`
-- Portfolio: `[add portfolio URL]`
-- Email: `[add contact email]`
+- LinkedIn: `https://www.linkedin.com/in/aragao-jean/`
 
 ## License
 
