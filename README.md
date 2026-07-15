@@ -23,7 +23,9 @@
 
 ## Table of Contents
 
+- [Problem Statement](#problem-statement)
 - [Project Vision](#project-vision)
+- [Current Status](#current-status)
 - [Product Overview](#product-overview)
 - [Current Features](#current-features)
 - [Roadmap](#roadmap)
@@ -31,6 +33,8 @@
 - [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Engineering Principles](#engineering-principles)
+- [Architecture Philosophy](#architecture-philosophy)
+- [Engineering Decisions](#engineering-decisions)
 - [Local Development](#local-development)
 - [Testing Strategy](#testing-strategy)
 - [API Documentation](#api-documentation)
@@ -41,6 +45,14 @@
 - [License](#license)
 
 ---
+
+## Problem Statement
+
+Betting operations move real money against prices that change by the second, under audit and regulatory scrutiny. A bet placed just before a market closes has to be accepted or rejected unambiguously. A settled market has to pay out exactly once. A disputed outcome has to be traceable back to the exact data that produced it.
+
+These aren't edge cases in this domain — they're the normal operating conditions. Most backend systems are built around the opposite assumption: that state changes are sequential, low-stakes, and easy to reason about after the fact.
+
+This project exists to work through that gap deliberately: to build a backend where correctness, concurrency-safety, and auditability are constraints the architecture satisfies from the first schema decision, not properties added once the business logic already works.
 
 ## Project Vision
 
@@ -53,7 +65,19 @@ That combination of constraints is why this is not being built as a CRUD applica
 - **Settlement is irreversible.** Once a market is settled and payouts are issued, correctness has to be enforced by the data model and the process, not by careful manual review.
 - **Every action needs a trail.** Support disputes, fraud review, and compliance all depend on being able to answer "what happened, and why" after the fact.
 
-These constraints shape the architectural decisions documented below — PostgreSQL as the system of record over eventual-consistency alternatives, a layered service/policy architecture instead of business logic in controllers, and CI gates enforced from the very first commit rather than added once the codebase is "big enough to need them."
+These constraints — not aesthetic preference — are what the architecture, technology choices, and CI setup documented below are built to satisfy.
+
+## Current Status
+
+- [x] Local development environment (Docker Compose + Makefile)
+- [x] API-only Rails 8 application skeleton
+- [x] CI/CD pipeline — security scan, lint, test — and dependency automation
+- [x] Deployment scaffold (Kamal)
+- [ ] Domain data model — in progress
+- [ ] Authentication, authorization, and service layer — planned
+- [ ] Financial engine — wallets, ledger, settlement — planned
+
+Details for each item are in [Current Features](#current-features) and [Roadmap](#roadmap).
 
 ## Product Overview
 
@@ -95,41 +119,48 @@ Everything listed here exists in the codebase today and is exercised by CI. Noth
 
 ## Roadmap
 
-### Implemented
+Organized by engineering milestone rather than a flat feature list, so the path from today's scaffold to a functioning platform is legible at a glance. Longer-horizon, less-scoped ideas live separately under [Future Enhancements](#future-enhancements).
+
+### Foundation
 - [x] Dockerized PostgreSQL for local development
 - [x] Poly-repo layout (orchestrator + `backend` submodule)
 - [x] API-only Rails 8 application skeleton
 - [x] Health-check endpoint
-- [x] CI pipeline: security scan, lint, test
+- [x] CI pipeline — security scan, lint, test
 - [x] Dependency automation (Dependabot)
 - [x] Deployment scaffold (Kamal + Thruster)
 
-### In Progress
-- [ ] Domain data model design (accounts, wallets, ledger, events, markets, odds, bets)
-
-### Planned
+### Core Domain
+- [ ] Domain data model (accounts, events, markets, odds) — in progress
 - [ ] Authentication (`has_secure_password` or token-based, e.g. Devise/JWT)
 - [ ] Authorization layer via policy objects (Pundit)
-- [ ] Service objects for business use cases (bet placement, settlement)
-- [ ] Query objects for complex reads (odds history, ledger reconciliation)
+- [ ] Service objects for core use cases
+- [ ] Query objects for complex reads
 - [ ] JSON serialization layer (Blueprinter or `ActiveModel::Serializer`)
-- [ ] Background jobs for asynchronous settlement processing (Solid Queue)
 - [ ] Structured error handling and consistent API error envelope
 - [ ] Test suite migration to RSpec + FactoryBot, including request specs
-- [ ] Test coverage reporting (SimpleCov)
 - [ ] OpenAPI / Swagger documentation
 
-### Future Ideas
-- [ ] Observability (structured logging, metrics, tracing)
-- [ ] Event-driven architecture for settlement and notifications
-- [ ] Feature flags for gradual rollout
-- [ ] Audit logs for compliance and dispute resolution
-- [ ] Multi-tenancy (multi-brand / multi-jurisdiction support)
-- [ ] Production deployment to AWS
+### Financial Engine
+- [ ] Wallet and append-only ledger
+- [ ] Concurrency-safe bet placement against live odds
+- [ ] Settlement processing as a background job (Solid Queue)
+
+### Product Intelligence
+- [ ] CSV import for bulk event/market seeding
+- [ ] AI-assisted risk/trading insights
+
+### Scalability
 - [ ] Caching strategy for odds and market data
 - [ ] Rate limiting on public API endpoints
-- [ ] AI-assisted risk/trading insights
-- [ ] CSV import for bulk event/market seeding
+- [ ] Multi-tenancy (multi-brand / multi-jurisdiction support)
+
+### Observability
+- [ ] Structured logging, metrics, and distributed tracing
+- [ ] Test coverage reporting (SimpleCov)
+
+### Cloud
+- [ ] Production deployment to AWS
 
 ## Architecture
 
@@ -152,16 +183,16 @@ Everything listed here exists in the codebase today and is exercised by CI. Noth
 
 ### Backend
 
-| Technology | Version | Purpose |
-|---|---|---|
-| Ruby | 3.2 (pinned in `Dockerfile`) | Language runtime |
-| Ruby on Rails | 8.0.5 | API-only application framework |
-| PostgreSQL | 16 | System of record — primary relational datastore |
-| Puma | ≥ 5.0 | Application server |
-| Solid Queue | Rails 8 default | Database-backed background job adapter |
-| Solid Cache | Rails 8 default | Database-backed `Rails.cache` adapter |
-| Solid Cable | Rails 8 default | Database-backed Action Cable adapter |
-| Bootsnap | latest | Boot-time caching for faster startup |
+| Technology | Version | Purpose | Why |
+|---|---|---|---|
+| Ruby | 3.2 (pinned in `Dockerfile`) | Language runtime | Matches Rails 8's supported baseline. |
+| Ruby on Rails | 8.0.5 | API-only application framework (`config.api_only = true`) | API-only strips the view layer this project doesn't need, keeping the surface area limited to the JSON contract. |
+| PostgreSQL | 16 | System of record — primary relational datastore | Strong transactional guarantees, which an append-only ledger design depends on more than horizontal read scale at this stage. |
+| Puma | ≥ 5.0 | Application server | Rails' default; no reason to deviate yet. |
+| Solid Queue | Rails 8 default | Database-backed background job adapter | Avoids running Redis for jobs that don't yet need sub-millisecond latency — one fewer moving part locally and in staging. |
+| Solid Cache | Rails 8 default | Database-backed `Rails.cache` adapter | Same rationale as Solid Queue. |
+| Solid Cable | Rails 8 default | Database-backed Action Cable adapter | Configured by default; unused until a real-time feature (e.g. live odds) needs it. |
+| Bootsnap | latest | Boot-time caching for faster startup | Standard Rails optimization. |
 
 ### Frontend
 
@@ -169,13 +200,13 @@ No client application exists in this repository. The backend is deliberately API
 
 ### Infrastructure
 
-| Technology | Purpose |
-|---|---|
-| Docker / Docker Compose | Local PostgreSQL provisioning (`infra/compose/docker-compose.yml`) |
-| Kamal | Containerized, zero-downtime deployment (`config/deploy.yml`) |
-| Thruster | HTTP asset caching/compression in front of Puma |
-| GitHub Actions | CI — security scan, lint, and test on every push/PR |
-| Dependabot | Automated dependency updates (bundler + GitHub Actions) |
+| Technology | Purpose | Why |
+|---|---|---|
+| Docker / Docker Compose | Local PostgreSQL provisioning (`infra/compose/docker-compose.yml`) | Reproducible local environment without installing PostgreSQL natively on every machine. |
+| Kamal | Containerized, zero-downtime deployment (`config/deploy.yml`) | Deploys to plain servers/containers without adopting a platform sized for a much larger system. |
+| Thruster | HTTP asset caching/compression in front of Puma | Avoids standing up a separate reverse proxy for basic HTTP caching. |
+| GitHub Actions | CI — security scan, lint, and test on every push/PR | Colocated with the code and requires no separate CI platform to operate. |
+| Dependabot | Automated dependency updates (bundler + GitHub Actions) | Low-effort dependency hygiene without a manual audit cadence. |
 
 ### Testing
 
@@ -241,8 +272,27 @@ betting-platform/
 - **Convention over configuration.** Rails defaults are used unless there's a concrete reason to deviate — evidenced by the current API-only, Omakase-styled, database-backed-adapter configuration.
 - **RESTful APIs.** Resources and actions are modeled around standard HTTP verbs and status codes.
 - **Tests at the boundary.** Request specs are the primary tool for verifying behavior as a client of the API would experience it, complemented by focused unit specs for services and models.
-- **CI as a gate, not a formality.** Security scanning, linting, and tests all run on every push — enforced from the first commit, not bolted on once the codebase "matters."
-- **Maintainability and scalability by construction.** Money-adjacent systems are expensive to fix after the fact; the layering above exists to keep the codebase reasoned-about-able as it grows, not to satisfy process for its own sake.
+- **CI as a gate, not a formality.** Security scanning, linting, and tests block merges rather than running informationally — a failing build is treated as broken, not as a warning to address later.
+
+## Architecture Philosophy
+
+The layering described above isn't a Rails convention followed out of habit — each boundary exists to contain a specific way this domain can go wrong.
+
+**Business rules live in services** because an operation like placing a bet touches multiple records — wallet, bet, ledger — that must succeed or fail together. Putting that logic in a controller action or a model callback makes the failure mode implicit; a service object makes it a single, testable unit.
+
+**Controllers coordinate, they don't decide.** Their only job is turning a request into a service call and a result into an HTTP response. Understanding how a bet gets placed shouldn't require reading a controller.
+
+**Policies authorize** because who-can-do-what changes independently of both the request shape and the persistence model. Coupling authorization to either makes both harder to change safely later.
+
+**Models protect data integrity** at the layer closest to the database — validations and constraints — not business process. A model that also orchestrates a multi-step transaction is doing two jobs.
+
+**Queries optimize reads** because a reconciliation report and a single record lookup are different problems. Conflating them tends to pull ActiveRecord scopes in directions that hurt both.
+
+## Engineering Decisions
+
+Architectural choices in this codebase are meant to be discoverable, not just inferable from the code. As services, query objects, error handling, authorization, and the testing strategy are implemented, the reasoning behind each decision — not just the resulting code — will be recorded as lightweight Architecture Decision Records under `docs/adr/`.
+
+The goal is that a reviewer can find out *why* a decision was made — for example, why settlement runs as a background job instead of inline, or why authorization is a separate policy layer instead of model scopes — without reconstructing it from commit history.
 
 ## Local Development
 
@@ -402,18 +452,22 @@ flowchart TD
 
 ## Future Enhancements
 
-Longer-horizon ideas beyond the near-term roadmap:
+Ideas beyond the scoped [Roadmap](#roadmap) — directionally likely, not yet committed to.
 
-- **Observability** — structured logging, metrics, and distributed tracing once the system has multiple moving parts worth correlating.
-- **Event-driven architecture** — domain events for settlement and notifications, decoupling side effects from the request/response cycle.
-- **Feature flags** — gradual rollout of new markets or wagering types without full deploys.
-- **Audit logs** — immutable records of sensitive actions for compliance and dispute resolution, building on the ledger's append-only design.
-- **Multi-tenancy** — supporting multiple brands or jurisdictions from a single codebase.
-- **AWS deployment** — a production target beyond the current Kamal scaffold.
-- **Caching strategy** — for high-read, low-latency data such as live odds.
-- **Rate limiting** — protecting public API endpoints from abuse.
-- **AI-assisted insights** — risk and trading signal support for market management.
-- **CSV import** — bulk seeding of events and markets from external feeds.
+### Platform
+- Multi-region / high-availability deployment topology, once a single Kamal target stops being sufficient.
+
+### Architecture
+- Event-driven architecture for settlement and notifications, decoupling side effects from the request/response cycle.
+
+### Developer Experience
+- Seed data and demo fixtures for a realistic local environment without production data.
+
+### Product
+- Feature flags for gradual rollout of new markets or wagering types without full deploys.
+
+### Operations
+- Audit logs as an immutable, queryable trail for compliance and dispute resolution — distinct from the ledger's transactional record.
 
 ## Contributing
 
@@ -431,7 +485,7 @@ Issues and discussion are welcome via the GitHub issue tracker on either reposit
 
 **Jean Aragão** ([@jeanflaragao](https://github.com/jeanflaragao))
 
-Backend / full-stack engineer building this project as a demonstration of production-oriented engineering practice — CI/CD discipline, layered architecture, and domain-driven design — applied to a financially sensitive domain.
+This project represents a long-term study of software architecture and backend engineering through the implementation of a financially sensitive domain — chosen deliberately because correctness and concurrency can't be faked with a CRUD scaffold. The engineering practices documented above (CI from the first commit, layered architecture, documented decisions) are the point of the exercise as much as the eventual feature set.
 
 - LinkedIn: `[add LinkedIn profile URL]`
 - Portfolio: `[add portfolio URL]`
