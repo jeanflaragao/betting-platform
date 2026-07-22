@@ -30,12 +30,12 @@ The trade-off is coordination overhead: a change spanning both repos requires tw
 
 ## Why not a CRUD application
 
-A betting platform is a financial system with a clock attached to it: money moves against odds that change in real time, settlement must be unambiguous even when an outcome is contested, and every balance change has to be reconstructable after the fact — for the user, for support, and for a regulator. That combination of constraints shapes every architectural decision here:
+This is a multi-account financial ledger with reconciliation obligations attached, not a form over a database. Money moves across many external bookmaker accounts the system doesn't control, and every deposit, withdrawal, and recorded bet outcome has to be traceable back to a specific account and, ultimately, to a defensible profit-and-loss figure. That combination of constraints shapes every architectural decision here:
 
-- **Money correctness is non-negotiable.** Wallet balances must never be derived from application-level arithmetic alone; they need an auditable, append-only trail.
-- **Concurrency is the default case, not the edge case.** Odds shift and bets are placed concurrently against the same market — the system has to reason about race conditions from the first schema decision, not retrofit locking later.
-- **Settlement is irreversible.** Once a market is settled and payouts are issued, correctness has to be enforced by the data model and the process, not by careful manual review.
-- **Every action needs a trail.** Support disputes, fraud review, and compliance all depend on being able to answer "what happened, and why" after the fact.
+- **Money correctness is non-negotiable.** Bankroll balances must never be derived from application-level arithmetic alone; they need an auditable, append-only ledger of deposits and withdrawals per account.
+- **Concurrency is the default case, not the edge case.** The same bookmaker account's balance can be updated from more than one place (a manual entry, an import, a correction) — the system has to reason about race conditions from the first schema decision, not retrofit locking later.
+- **Reconciliation must be trustworthy.** A profitability report is only useful if it can be traced back to the ledger entries and bet records that produced it — correctness has to be enforced by the data model and the process, not by careful manual review.
+- **Every action needs a trail.** Disputing a bookmaker's numbers, auditing an operation's books, or just answering "where did this money go" all depend on being able to answer "what happened, and why" after the fact.
 
 These constraints — not aesthetic preference — are what the layering described in [backend.md](backend.md), the technology choices, and the CI setup are built to satisfy.
 
@@ -89,7 +89,7 @@ Once domain resources exist, this diagram will grow to include the layered flow 
 | Document | Covers |
 |---|---|
 | [backend.md](backend.md) | Backend layering, target architecture, architecture philosophy |
-| [domain.md](domain.md) | Domain concepts (accounts, markets, odds, settlement) |
+| [domain.md](domain.md) | Domain concepts (bookmakers, accounts, ledger, reconciliation) |
 | [../adr/README.md](../adr/README.md) | Architecture Decision Records |
 | [../api/README.md](../api/README.md) | API documentation strategy |
 | [../development/README.md](../development/README.md) | Local setup and contribution workflow |

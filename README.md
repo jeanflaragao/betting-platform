@@ -2,9 +2,9 @@
 
 # Betting Platform
 
-**The operational core of a real-money wagering system — engineered around correctness, auditability, and concurrency-safety from the first commit.**
+**The operational and financial core for betting businesses — bookmaker accounts, bankrolls, and reconciliation, engineered around correctness, auditability, and concurrency-safety from the first commit.**
 
-[![Status](https://img.shields.io/badge/status-foundation--phase-yellow)](#roadmap)
+[![Status](https://img.shields.io/badge/status-core--domain--phase-yellow)](#roadmap)
 [![CI](https://github.com/jeanflaragao/backend/actions/workflows/ci.yml/badge.svg)](https://github.com/jeanflaragao/backend/actions/workflows/ci.yml)
 [![Ruby](https://img.shields.io/badge/ruby-3.2-CC342D?logo=ruby&logoColor=white)](backend/Dockerfile)
 [![Rails](https://img.shields.io/badge/rails-8.0.5-CC0000?logo=rubyonrails&logoColor=white)](backend/Gemfile.lock)
@@ -16,7 +16,7 @@
 ---
 
 > [!IMPORTANT]
-> **Project stage.** This repository is in its **foundation phase**. The engineering scaffolding — CI/CD, containerized local development, deployment pipeline, security scanning, and dependency automation — is in place and enforced on every push. Domain logic (accounts, wagering, settlement) has not been implemented yet and is tracked explicitly in the [Roadmap](#roadmap). This README documents only what exists today; everything else is scoped as planned work, not shipped functionality.
+> **Project stage.** The engineering scaffolding — containerized local development, deployment pipeline, dependency automation, and a CI workflow — is in place. **CI is currently scaffolded but disabled** (see `backend/.github/workflows/ci.yml`) and needs to be re-enabled; treat "tests pass" as a local guarantee only until it is. Bookmaker account management (authentication, CRUD, authorization, filtering/search/sort, serialization, test suite) is the first implemented domain slice. The financial engine — accounts, deposits/withdrawals, bankroll, reconciliation, and reporting — has not been implemented yet and is tracked explicitly in the [Roadmap](#roadmap). This README documents only what exists today; everything else is scoped as planned work, not shipped functionality.
 
 ## Table of Contents
 
@@ -33,21 +33,21 @@
 
 ## What is this project?
 
-A backend-first engineering effort building the operational core of a real-money sports and event wagering platform: accounts, wallets, markets, odds, bet slips, and settlement. The full domain model is described in [docs/architecture/domain.md](docs/architecture/domain.md) — none of it is implemented yet, by design (see the foundation-phase note above and the [Roadmap](#roadmap)).
+A backend-first engineering effort building the operational and financial core for betting businesses: bookmaker account management, deposits and withdrawals, bankroll tracking, operational expenses, betting history, and profitability reporting. Think of it as an **ERP for betting operations** — it is not a sportsbook, not a betting website, and not a gambling product; it does not simulate odds, markets, or wagers. The full domain model is described in [docs/architecture/domain.md](docs/architecture/domain.md).
 
 The repository is structured as a **poly-repo**: this repo owns local infrastructure and deployment; the Rails application lives in a separate, independently-versioned [`backend`](https://github.com/jeanflaragao/backend) repository, pulled in as a git submodule.
 
 ## What problem does it solve?
 
-Betting operations move real money against prices that change by the second, under audit and regulatory scrutiny. A bet placed just before a market closes has to be accepted or rejected unambiguously. A settled market has to pay out exactly once. A disputed outcome has to be traceable back to the exact data that produced it.
+Anyone operating across multiple bookmakers — a professional bettor, a small trading operation, a business managing several staff accounts — ends up with money and history scattered across accounts that don't talk to each other: different currencies, different limits, different rules about what a bookmaker will let an account do after it starts winning. Answering "am I actually profitable, and where" after the fact means reconstructing that picture by hand.
 
-These aren't edge cases in this domain — they're the normal operating conditions. Most backend systems are built around the opposite assumption: that state changes are sequential, low-stakes, and easy to reason about after the fact. This project works through that gap deliberately.
+These aren't edge cases in this domain — they're the normal operating conditions. This project is a single system of record for every bookmaker account an operation holds, the money moving in and out of each one, and the operational costs and outcomes needed to answer the profitability question with evidence instead of a spreadsheet guess.
 
 ## Why does it exist?
 
-A betting platform is not a form over a database — it's a financial system with a clock attached to it. Money moves against odds that change in real time, settlement must be unambiguous even when an outcome is contested, and every balance change has to be reconstructable after the fact — for the user, for support, and for a regulator.
+This isn't a form over a database — it's a multi-account financial ledger with reconciliation obligations attached. Money moves across many external accounts the system doesn't control, each with its own currency and rules; every deposit, withdrawal, and recorded result has to be traceable back to a specific bookmaker account and, ultimately, to a defensible profit-and-loss figure.
 
-That's why this isn't being built as a CRUD application: money correctness is non-negotiable, concurrency is the default case rather than the edge case, settlement is irreversible, and every action needs an audit trail. These constraints — not aesthetic preference — drive the architecture, technology choices, and CI setup. The full reasoning lives in [docs/architecture/overview.md](docs/architecture/overview.md).
+That's why this isn't being built as a CRUD application: money correctness across many external accounts is non-negotiable, concurrent updates to the same account or bankroll are the normal case rather than the edge case, and every balance change has to be reconstructable after the fact — for the operator, and for reconciliation. These constraints — not aesthetic preference — drive the architecture, technology choices, and CI setup. The full reasoning lives in [docs/architecture/overview.md](docs/architecture/overview.md).
 
 ## High-level architecture
 
@@ -128,7 +128,7 @@ Full setup instructions (environment variables, database prep, running tests) li
 | [frontend/README.md](frontend/README.md) | Frontend status and planned direction |
 | [docs/architecture/overview.md](docs/architecture/overview.md) | System-level architecture, poly-repo rationale, diagrams |
 | [docs/architecture/backend.md](docs/architecture/backend.md) | Backend layering, target architecture, design philosophy |
-| [docs/architecture/domain.md](docs/architecture/domain.md) | Domain model (accounts, markets, odds, settlement) |
+| [docs/architecture/domain.md](docs/architecture/domain.md) | Domain model (bookmakers, accounts, ledger, reconciliation) |
 | [docs/adr/README.md](docs/adr/README.md) | Architecture Decision Records |
 | [docs/api/README.md](docs/api/README.md) | API documentation strategy |
 | [docs/development/README.md](docs/development/README.md) | Local setup and contribution workflow |
@@ -142,32 +142,36 @@ Organized by engineering milestone rather than a flat feature list, so the path 
 - [x] Poly-repo layout (orchestrator + `backend` submodule)
 - [x] API-only Rails 8 application skeleton
 - [x] Health-check endpoint
-- [x] CI pipeline — security scan, lint, test
+- [ ] CI pipeline enforced on every push — workflow is scaffolded (security scan, lint, test) but currently disabled; needs re-enabling
 - [x] Dependency automation (Dependabot)
 - [x] Deployment scaffold (Kamal + Thruster)
 
-### Core Domain
-- [ ] Domain data model (accounts, events, markets, odds) — in progress
-- [ ] Authentication (`has_secure_password` or token-based, e.g. Devise/JWT)
-- [ ] Authorization layer via policy objects (Pundit)
-- [ ] Service objects for core use cases
-- [ ] Query objects for complex reads
-- [ ] JSON serialization layer (Blueprinter or `ActiveModel::Serializer`)
-- [ ] Structured error handling and consistent API error envelope
-- [ ] Test suite migration to RSpec + FactoryBot, including request specs
+### Core Domain — Bookmaker Account Management
+- [x] Authentication (`has_secure_password` + JWT)
+- [x] Bookmaker management (create, list, show — owned per user)
+- [x] Authorization layer via policy objects (Pundit)
+- [x] Query objects for filtering, search, sort, and pagination
+- [x] JSON serialization layer (Alba)
+- [x] Test suite (RSpec + FactoryBot), including request specs
+- [ ] Structured, consistent API error envelope — in progress
+- [ ] Bookmaker deletion with business-rule guards (e.g. block deletion while linked accounts are active) — in progress
 - [ ] OpenAPI / Swagger documentation
 
 ### Financial Engine
-- [ ] Wallet and append-only ledger
-- [ ] Concurrency-safe bet placement against live odds
-- [ ] Settlement processing as a background job (Solid Queue)
+- [ ] Account model (an account held at a given bookmaker, scoped to a bookmaker)
+- [ ] Deposit / withdrawal ledger (append-only) per account
+- [ ] Bankroll aggregation across accounts
+- [ ] Operational expense tracking
+- [ ] Bet-history recording, for profitability analysis (not for placing bets)
+- [ ] Account limitation tracking (bookmaker-imposed restrictions)
+- [ ] Reconciliation and profitability reporting
 
 ### Product Intelligence
-- [ ] CSV import for bulk event/market seeding
-- [ ] AI-assisted risk/trading insights
+- [ ] CSV import for bulk transaction / bet-history import
+- [ ] AI-assisted profitability and risk insights
 
 ### Scalability
-- [ ] Caching strategy for odds and market data
+- [ ] Caching strategy for account and bankroll read models
 - [ ] Rate limiting on public API endpoints
 - [ ] Multi-tenancy (multi-brand / multi-jurisdiction support)
 
@@ -183,10 +187,10 @@ Organized by engineering milestone rather than a flat feature list, so the path 
 Ideas beyond the scoped roadmap above — directionally likely, not yet committed to:
 
 - Seed data and demo fixtures for a realistic local environment without production data.
-- Feature flags for gradual rollout of new markets or wagering types without full deploys.
+- Feature flags for gradual rollout of new bookmaker integrations or reporting features without full deploys.
 - Audit logs as an immutable, queryable trail for compliance and dispute resolution — distinct from the ledger's transactional record.
 - Multi-region / high-availability deployment topology, once a single Kamal target stops being sufficient.
-- Event-driven architecture for settlement and notifications, decoupling side effects from the request/response cycle.
+- Event-driven architecture for transaction processing and notifications, decoupling side effects from the request/response cycle.
 
 ## About
 

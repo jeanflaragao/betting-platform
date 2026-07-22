@@ -1,12 +1,12 @@
 # Architecture Decision Records
 
-An ADR is a short, immutable record of a single architectural decision: the context that forced it, the decision itself, and the trade-offs accepted. The goal is that a reviewer can find out *why* a decision was made — for example, why settlement runs as a background job instead of inline, or why authorization is a separate policy layer instead of model scopes — without reconstructing it from commit history or asking the author directly.
+An ADR is a short, immutable record of a single architectural decision: the context that forced it, the decision itself, and the trade-offs accepted. The goal is that a reviewer can find out *why* a decision was made — for example, why reconciliation runs as a background job instead of inline, or why authorization is a separate policy layer instead of model scopes — without reconstructing it from commit history or asking the author directly.
 
 ## When to write one
 
 Any change that introduces a new architectural pattern or modifies an existing architectural boundary should be accompanied by an ADR. Examples that will warrant one as the domain layer is built out:
 
-- Choosing a background job strategy for settlement processing.
+- Choosing a background job strategy for reconciliation processing.
 - Choosing how authorization is modeled (policy objects vs. model scopes vs. a gem).
 - Choosing the ledger's concurrency-control mechanism (e.g. optimistic locking vs. `SELECT ... FOR UPDATE`).
 - Choosing the API serialization approach.
